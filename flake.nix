@@ -36,7 +36,6 @@
                   "rustfmt"
                 ];
               })
-
             ] ++ builtins.attrValues { inherit (pkgs) rust-analyzer-unwrapped nixd pkg-config; };
           in
           pkgs.mkShell {
@@ -46,7 +45,7 @@
       });
 
       packages = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/package.nix {
+        server = pkgs.callPackage ./nix/server.nix {
           rustPlatform =
             let
               rust-bin = pkgs.rust-bin.stable.latest.default;
