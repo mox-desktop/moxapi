@@ -1,0 +1,13 @@
+[Install]
+WantedBy=graphical-session.target
+
+[Unit]
+Description=moxapi
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+ExecStart=@bindir@/moxapi
+Restart=always
+RestartSec=10
