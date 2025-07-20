@@ -2,7 +2,6 @@ mod idle;
 mod notify;
 
 use actix_cors::Cors;
-use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{
     App, HttpResponse, HttpServer, get,
     middleware::{self, DefaultHeaders},
@@ -114,7 +113,8 @@ async fn post_notify(
         .with_timeout(req_body.timeout)
         .with_id(req_body.id)
         .send()
-        .await;
+        .await
+        .unwrap();
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -129,44 +129,29 @@ async fn main() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
-        let cors = Cors::default()
-            .allowed_methods(vec!["POST", "GET"])
-            .allowed_headers(vec![
-                actix_web::http::header::AUTHORIZATION,
-                actix_web::http::header::ACCEPT,
-                actix_web::http::header::CONTENT_TYPE,
-            ])
-            .max_age(3600);
-
-        let governor_conf = GovernorConfigBuilder::default()
-            .seconds_per_request(2)
-            .burst_size(5)
-            .finish()
-            .unwrap();
-
         App::new()
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allowed_methods(vec!["GET", "POST", "OPTIONS"])
+                    .allowed_headers(vec![
+                        actix_web::http::header::AUTHORIZATION,
+                        actix_web::http::header::ACCEPT,
+                        actix_web::http::header::CONTENT_TYPE,
+                    ])
+                    .expose_headers(vec![actix_web::http::header::CONTENT_TYPE])
+                    .max_age(3600),
+            )
             .app_data(state.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024))
             .app_data(web::JsonConfig::default().limit(1024 * 1024))
-            .wrap(Governor::new(&governor_conf))
             .wrap(
                 DefaultHeaders::new()
                     .add(("X-Content-Type-Options", "nosniff"))
                     .add(("X-Frame-Options", "DENY"))
-                    .add(("X-XSS-Protection", "1; mode=block"))
-                    .add((
-                        "Strict-Transport-Security",
-                        "max-age=31536000; includeSubDomains; preload",
-                    ))
-                    .add(("Content-Security-Policy", "default-src 'self'"))
-                    .add(("Referrer-Policy", "strict-origin-when-cross-origin"))
-                    .add((
-                        "Permissions-Policy",
-                        "geolocation=(), microphone=(), camera=()",
-                    )),
+                    .add(("X-XSS-Protection", "1; mode=block")),
             )
             .wrap(middleware::Logger::default())
-            .wrap(cors)
             .service(post_idle_lock)
             .service(post_idle_unlock)
             .service(post_simulate_user_activity)

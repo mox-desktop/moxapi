@@ -13,6 +13,7 @@
     "npm:classnames@^2.5.1": "2.5.1",
     "npm:clsx@^2.1.1": "2.1.1",
     "npm:lucide-react@0.525": "0.525.0_react@19.1.0",
+    "npm:next-themes@~0.4.6": "0.4.6_react@19.1.0_react-dom@19.1.0__react@19.1.0",
     "npm:next@15.4.2": "15.4.2_react@19.1.0_react-dom@19.1.0__react@19.1.0",
     "npm:react-dom@19.1.0": "19.1.0_react@19.1.0",
     "npm:react@19.1.0": "19.1.0",
@@ -833,6 +834,13 @@
       "integrity": "sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==",
       "bin": true
     },
+    "next-themes@0.4.6_react@19.1.0_react-dom@19.1.0__react@19.1.0": {
+      "integrity": "sha512-pZvgD5L0IEvX5/9GWyHMf3m8BKiVQwsCMHfoFosXtXBMnaS0ZnIJ9ST4b4NqLVKDEm8QBxoNNGNaBv2JNF6XNA==",
+      "dependencies": [
+        "react",
+        "react-dom"
+      ]
+    },
     "next@15.4.2_react@19.1.0_react-dom@19.1.0__react@19.1.0": {
       "integrity": "sha512-oH1rmFso+84NIkocfuxaGKcXIjMUTmnzV2x0m8qsYtB4gD6iflLMESXt5XJ8cFgWMBei4v88rNr/j+peNg72XA==",
       "dependencies": [
@@ -1066,6 +1074,7 @@
         "npm:classnames@^2.5.1",
         "npm:clsx@^2.1.1",
         "npm:lucide-react@0.525",
+        "npm:next-themes@~0.4.6",
         "npm:next@15.4.2",
         "npm:react-dom@19.1.0",
         "npm:react@19.1.0",

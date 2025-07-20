@@ -106,16 +106,56 @@ export default function DesktopHostManager() {
 		}
 	};
 
-	async function executeAction(action: string) {
+	const ACTION_ENDPOINTS = {
+		lock: "/idle/lock",
+		unlock: "/idle/unlock",
+		"simulate-activity": "/idle/simulate_user_activity",
+		inhibit: "/idle/inhibit",
+		uninhibit: "/idle/uninhibit",
+	} as const;
+
+	const ACTION_METHODS = {
+		lock: "POST",
+		unlock: "POST",
+		"simulate-activity": "POST",
+		inhibit: "POST",
+		uninhibit: "POST",
+	} as const;
+
+	async function executeAction(action: keyof typeof ACTION_ENDPOINTS) {
 		if (!currentHost) return;
+
+		const endpoint = ACTION_ENDPOINTS[action];
+		const method = ACTION_METHODS[action] || "POST";
+
+		if (!endpoint) {
+			console.error(`Unknown action: ${action}`);
+			return;
+		}
+
 		console.log(
 			`Executing ${action} on ${currentHost.name} (${currentHost.ip})`,
 		);
-		const res = await fetch(`${process.env.SERVER_URL}/stats`);
-		if (!res.ok) throw new Error("Failed to fetch stats");
 
-		const stats = await res.json();
-		console.log(stats);
+		try {
+			const res = await fetch(`${currentHost.ip}${endpoint}`, {
+				method,
+				headers: {
+					"Content-Type": "application/json",
+				},
+			});
+
+			if (!res.ok) {
+				throw new Error(`Failed to execute ${action}: ${res.statusText}`);
+			}
+
+			const result = await res.json();
+			console.log(`${action} result:`, result);
+			return result;
+		} catch (error) {
+			console.error(`Error executing ${action}:`, error);
+			throw error;
+		}
 	}
 
 	const sendNotification = () => {

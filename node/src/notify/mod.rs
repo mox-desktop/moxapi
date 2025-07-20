@@ -32,8 +32,6 @@ impl NotificationManager {
         let session_conn = zbus::Connection::session().await?;
         let proxy = NotificationsProxy::new(&session_conn).await?;
 
-        log::info!("here: {:?}", proxy.get_capabilities().await?);
-
         Ok(Self {
             session_conn,
             proxy,
