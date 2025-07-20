@@ -26,8 +26,8 @@ trait LoginManager {
 
 pub struct Idle {
     cookie: Option<u32>,
-    system_conn: Connection,
-    session_conn: Connection,
+    _system_conn: Connection,
+    _session_conn: Connection,
     screen_saver: ScreenSaverProxy<'static>,
     login_manager: LoginManagerProxy<'static>,
 }
@@ -44,8 +44,8 @@ impl Idle {
             cookie: None,
             login_manager,
             screen_saver,
-            session_conn,
-            system_conn,
+            _session_conn: session_conn,
+            _system_conn: system_conn,
         })
     }
 

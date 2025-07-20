@@ -1,17 +1,20 @@
 mod idle;
-use std::sync::Arc;
+mod notify;
 
 use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{
-    App, HttpResponse, HttpServer,
+    App, HttpResponse, HttpServer, get,
     middleware::{self, DefaultHeaders},
     post, web,
 };
+use serde::Deserialize;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 struct State {
     idle: Arc<RwLock<idle::Idle>>,
+    notify: notify::NotificationManager,
 }
 
 #[post("/idle/inhibit")]
@@ -83,12 +86,46 @@ async fn post_simulate_user_activity(
     }
 }
 
+#[get("/notify/capabilities")]
+async fn get_notify_capabilities(data: web::Data<State>) -> Result<HttpResponse, actix_web::Error> {
+    match data.notify.get_capabilities().await {
+        Ok(capabilities) => Ok(HttpResponse::Ok().json(capabilities)),
+        Err(e) => Ok(HttpResponse::InternalServerError().json(format!("Error: {e}"))),
+    }
+}
+
+#[derive(Deserialize)]
+struct NotificationRequest {
+    summary: Box<str>,
+    body: Box<str>,
+    timeout: i32,
+    id: u32,
+}
+
+#[post("/notify")]
+async fn post_notify(
+    data: web::Data<State>,
+    req_body: web::Json<NotificationRequest>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let builder = data.notify.builder().await;
+    builder
+        .with_summary(&req_body.summary)
+        .with_body(&req_body.body)
+        .with_timeout(req_body.timeout)
+        .with_id(req_body.id)
+        .send()
+        .await;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let state = web::Data::new(State {
         idle: Arc::new(RwLock::new(idle::Idle::new().await.unwrap())),
+        notify: notify::NotificationManager::new().await.unwrap(),
     });
 
     HttpServer::new(move || {
@@ -108,7 +145,7 @@ async fn main() -> std::io::Result<()> {
             .unwrap();
 
         App::new()
-            .app_data(state.clone()) // Add the shared state here
+            .app_data(state.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024))
             .app_data(web::JsonConfig::default().limit(1024 * 1024))
             .wrap(Governor::new(&governor_conf))
@@ -135,6 +172,8 @@ async fn main() -> std::io::Result<()> {
             .service(post_simulate_user_activity)
             .service(post_idle_inhibit)
             .service(post_idle_uninhibit)
+            .service(get_notify_capabilities)
+            .service(post_notify)
     })
     .bind(("0.0.0.0", 8000))?
     .workers(2)
