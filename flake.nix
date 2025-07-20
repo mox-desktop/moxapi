@@ -29,14 +29,29 @@
         default =
           let
             inherit (pkgs) lib;
-            buildInputs = [
-              (pkgs.rust-bin.stable.latest.default.override {
-                extensions = [
-                  "rust-src"
-                  "rustfmt"
-                ];
-              })
-            ] ++ builtins.attrValues { inherit (pkgs) rust-analyzer-unwrapped nixd pkg-config; };
+            buildInputs =
+              [
+                (pkgs.rust-bin.stable.latest.default.override {
+                  extensions = [
+                    "rust-src"
+                    "rustfmt"
+                  ];
+                })
+              ]
+              ++ builtins.attrValues {
+                inherit (pkgs)
+                  rust-analyzer-unwrapped
+                  nixd
+                  pkg-config
+                  deno
+                  tailwindcss-language-server
+                  vscode-langservers-extracted
+                  prettierd
+                  typescript-language-server
+                  biome
+                  nodejs_24
+                  ;
+              };
           in
           pkgs.mkShell {
             inherit buildInputs;
@@ -45,7 +60,7 @@
       });
 
       packages = forAllSystems (pkgs: {
-        server = pkgs.callPackage ./nix/server.nix {
+        default = pkgs.callPackage ./nix/node.nix {
           rustPlatform =
             let
               rust-bin = pkgs.rust-bin.stable.latest.default;
