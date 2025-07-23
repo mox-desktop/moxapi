@@ -3,17 +3,45 @@ mod notify;
 
 use actix_cors::Cors;
 use actix_web::{
-    App, HttpResponse, HttpServer, get,
+    App, HttpResponse, HttpServer,
+    body::BoxBody,
+    get,
     middleware::{self, DefaultHeaders},
     post, web,
 };
-use serde::Deserialize;
+use actix_web::{
+    Error,
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+};
+use futures_util::future::{LocalBoxFuture, Ready, ok};
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::rc::Rc;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 struct State {
     idle: Arc<RwLock<idle::Idle>>,
     notify: notify::NotificationManager,
+}
+
+#[derive(Serialize)]
+struct Status {
+    active: bool,
+    active_time: u32,
+    inhibited: bool,
+}
+
+#[get("/status")]
+async fn get_status(data: web::Data<State>) -> Result<HttpResponse, actix_web::Error> {
+    let idle = data.idle.read().await;
+    let status = Status {
+        active: idle.get_active().await.unwrap(),
+        active_time: idle.get_active_time().await.unwrap(),
+        inhibited: idle.get_inhibited(),
+    };
+
+    Ok(HttpResponse::Ok().json(status))
 }
 
 #[post("/idle/inhibit")]
@@ -119,6 +147,79 @@ async fn post_notify(
     Ok(HttpResponse::Ok().finish())
 }
 
+pub struct AuthMiddleware {
+    key: String,
+}
+
+impl AuthMiddleware {
+    pub fn new(key: String) -> Self {
+        Self { key }
+    }
+}
+
+impl<S, B> Transform<S, ServiceRequest> for AuthMiddleware
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    B: actix_web::body::MessageBody + 'static,
+{
+    type Response = ServiceResponse<BoxBody>;
+    type Error = Error;
+    type Transform = AuthMiddlewareService<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(AuthMiddlewareService {
+            service: Rc::new(service),
+            key: self.key.clone(),
+        })
+    }
+}
+
+pub struct AuthMiddlewareService<S> {
+    service: Rc<S>,
+    key: String,
+}
+
+impl<S, B> Service<ServiceRequest> for AuthMiddlewareService<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    B: actix_web::body::MessageBody + 'static,
+{
+    type Response = ServiceResponse<BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(
+        &self,
+        ctx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(ctx)
+    }
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let key = self.key.clone();
+        let srv = self.service.clone();
+        Box::pin(async move {
+            let authorized = req
+                .headers()
+                .get(actix_web::http::header::AUTHORIZATION)
+                .and_then(|h| h.to_str().ok())
+                .map(|v| v == key)
+                .unwrap_or(false);
+            if !authorized {
+                return Ok(req.into_response(
+                    HttpResponse::Unauthorized()
+                        .body("Unauthorized")
+                        .map_into_boxed_body(),
+                ));
+            }
+            let res = srv.call(req).await?;
+            Ok(res.map_into_boxed_body())
+        })
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
@@ -128,8 +229,15 @@ async fn main() -> std::io::Result<()> {
         notify: notify::NotificationManager::new().await.unwrap(),
     });
 
+    let auth_key = match env::var("AUTH_KEY_FILE") {
+        Ok(auth_key_file) => std::fs::read_to_string(&auth_key_file)
+            .unwrap_or_else(|_| panic!("Failed to read {auth_key_file}")),
+        Err(_) => env::var("AUTH_KEY").expect("AUTH_KEY_FILE or AUTH_KEY env var must be set"),
+    };
+
     HttpServer::new(move || {
         App::new()
+            .wrap(AuthMiddleware::new(auth_key.clone()))
             .wrap(
                 Cors::default()
                     .allow_any_origin()
@@ -159,6 +267,7 @@ async fn main() -> std::io::Result<()> {
             .service(post_idle_uninhibit)
             .service(get_notify_capabilities)
             .service(post_notify)
+            .service(get_status)
     })
     .bind(("0.0.0.0", 8000))?
     .workers(2)

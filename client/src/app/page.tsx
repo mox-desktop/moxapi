@@ -22,28 +22,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+
 import {
-	LogIn,
 	Plus,
 	Monitor,
 	Lock,
 	Unlock,
 	MousePointer,
 	Ban,
-	Play,
 	Bell,
-	Server,
 	Activity,
-	Moon,
-	Sun,
 } from "lucide-react";
-
-interface Host {
-	id: string;
-	name: string;
-	ip: string;
-	status: "online" | "offline" | "unknown";
-}
+import Header from "@/components/ui/header";
+import { Host, Panel } from "@/components/ui/panel";
 
 interface NotificationArgs {
 	title: string;
@@ -78,13 +69,6 @@ export default function DesktopHostManager() {
 		document.documentElement.classList.toggle("dark", savedTheme === "dark");
 	}, []);
 
-	const toggleTheme = () => {
-		const newTheme = theme === "light" ? "dark" : "light";
-		setTheme(newTheme);
-		localStorage.setItem("theme", newTheme);
-		document.documentElement.classList.toggle("dark", newTheme === "dark");
-	};
-
 	if (!mounted) {
 		return null;
 	}
@@ -98,6 +82,7 @@ export default function DesktopHostManager() {
 				name: newHostName,
 				ip: newHostIp,
 				status: "unknown",
+				isInhibited: false,
 			};
 			setHosts([...hosts, newHost]);
 			setNewHostIp("");
@@ -148,15 +133,37 @@ export default function DesktopHostManager() {
 			if (!res.ok) {
 				throw new Error(`Failed to execute ${action}: ${res.statusText}`);
 			}
-
-			const result = await res.json();
-			console.log(`${action} result:`, result);
-			return result;
 		} catch (error) {
 			console.error(`Error executing ${action}:`, error);
 			throw error;
 		}
 	}
+
+	const handleInhibitToggle = async (checked: boolean) => {
+		if (!currentHost) return;
+
+		// Optimistically update the UI first
+		setHosts((prevHosts) =>
+			prevHosts.map((host) =>
+				host.id === currentHost.id ? { ...host, isInhibited: checked } : host,
+			),
+		);
+
+		try {
+			const action = checked ? "inhibit" : "uninhibit";
+			await executeAction(action);
+		} catch (error) {
+			// Revert the UI change if the API call fails
+			setHosts((prevHosts) =>
+				prevHosts.map((host) =>
+					host.id === currentHost.id
+						? { ...host, isInhibited: !checked }
+						: host,
+				),
+			);
+			console.error("Failed to toggle inhibit:", error);
+		}
+	};
 
 	const sendNotification = () => {
 		if (!currentHost || !notificationArgs.title || !notificationArgs.message)
@@ -177,31 +184,7 @@ export default function DesktopHostManager() {
 
 	return (
 		<div className="min-h-screen bg-background">
-			{/* Header */}
-			<header className="border-b">
-				<div className="container mx-auto px-4 py-4 flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<Server className="h-6 w-6" />
-						<h1 className="text-xl font-semibold">Desktop Host Manager</h1>
-					</div>
-					<div className="flex items-center gap-2">
-						<Button
-							variant="outline"
-							size="icon"
-							onClick={toggleTheme}
-							className="bg-transparent"
-						>
-							<Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-							<Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-							<span className="sr-only">Toggle theme</span>
-						</Button>
-						<Button variant="outline" className="gap-2 bg-transparent">
-							<LogIn className="h-4 w-4" />
-							Login
-						</Button>
-					</div>
-				</div>
-			</header>
+			<Header theme={theme} setTheme={setTheme} />
 
 			<div className="container mx-auto px-4 py-6">
 				<div className="flex items-center justify-between mb-6">
@@ -298,24 +281,17 @@ export default function DesktopHostManager() {
 
 				{/* Host Management Panel */}
 				{currentHost && (
-					<Card className="border border-border rounded-t-none shadow-lg">
-						<CardHeader className="pt-6">
-							<CardTitle className="flex items-center gap-2">
-								<Monitor className="h-5 w-5" />
-								{currentHost.name}
-							</CardTitle>
-							<CardDescription>
-								IP: {currentHost.ip} • Status: {currentHost.status}
-							</CardDescription>
-						</CardHeader>
+					<Panel host={currentHost}>
 						<CardContent className="space-y-6">
+							<Separator />
+
 							{/* Idle Related Options */}
 							<div>
 								<h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
 									<Activity className="h-4 w-4" />
 									Idle Management
 								</h3>
-								<div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+								<div className="grid grid-cols-1 md:grid-cols-4 gap-3">
 									<Button
 										variant="outline"
 										className="gap-2 bg-transparent"
@@ -340,22 +316,42 @@ export default function DesktopHostManager() {
 										<MousePointer className="h-4 w-4" />
 										Simulate Activity
 									</Button>
-									<Button
-										variant="outline"
-										className="gap-2 bg-transparent"
-										onClick={() => executeAction("inhibit")}
-									>
-										<Ban className="h-4 w-4" />
-										Inhibit
-									</Button>
-									<Button
-										variant="outline"
-										className="gap-2 bg-transparent"
-										onClick={() => executeAction("uninhibit")}
-									>
-										<Play className="h-4 w-4" />
-										Uninhibit
-									</Button>
+
+									<div className="flex items-center gap-3 px-4 py-2 rounded-md border bg-transparent">
+										<Ban className="h-5 w-4" />
+										<Label htmlFor="inhibit-switch" className="flex-1">
+											Inhibit Idle
+										</Label>
+										<button
+											id="inhibit-switch"
+											onClick={() =>
+												handleInhibitToggle(!(currentHost.isInhibited ?? false))
+											}
+											className={`
+												relative inline-flex h-4 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-indigo-500
+												${
+													(currentHost.isInhibited ?? false)
+														? "bg-blue-600 dark:bg-blue-500"
+														: "bg-gray-200 dark:bg-gray-700"
+												}
+											`}
+											type="button"
+											role="switch"
+											aria-checked={currentHost.isInhibited ?? false}
+										>
+											<span className="sr-only">Toggle inhibit idle</span>
+											<span
+												className={`
+													inline-block h-3 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+													${
+														(currentHost.isInhibited ?? false)
+															? "translate-x-6"
+															: "translate-x-1"
+													}
+												`}
+											/>
+										</button>
+									</div>
 								</div>
 							</div>
 
@@ -469,7 +465,7 @@ export default function DesktopHostManager() {
 								</Dialog>
 							</div>
 						</CardContent>
-					</Card>
+					</Panel>
 				)}
 			</div>
 		</div>

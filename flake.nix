@@ -60,7 +60,7 @@
       });
 
       packages = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/node.nix {
+        default = pkgs.callPackage ./nix/server.nix {
           rustPlatform =
             let
               rust-bin = pkgs.rust-bin.stable.latest.default;

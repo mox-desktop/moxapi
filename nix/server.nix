@@ -1,13 +1,13 @@
 { rustPlatform, lib }:
 let
-  cargoToml = builtins.fromTOML (builtins.readFile ../node/Cargo.toml);
+  cargoToml = builtins.fromTOML (builtins.readFile ../server/Cargo.toml);
 in
 rustPlatform.buildRustPackage {
   pname = "moxapi";
   inherit (cargoToml.package) version;
-  cargoLock.lockFile = ../node/Cargo.lock;
+  cargoLock.lockFile = ../server/Cargo.lock;
 
-  src = ../node;
+  src = ../server;
 
   postFixup = ''
     mkdir -p $out/share/systemd/user

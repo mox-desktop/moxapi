@@ -11,6 +11,10 @@ trait ScreenSaver {
     async fn inhibit(&self, application_name: &str, reason_for_inhibit: &str) -> zbus::Result<u32>;
 
     async fn un_inhibit(&self, cookie: u32) -> zbus::Result<()>;
+
+    async fn get_active(&self) -> zbus::Result<bool>;
+
+    async fn get_active_time(&self) -> zbus::Result<u32>;
 }
 
 #[zbus::proxy(
@@ -83,5 +87,23 @@ impl Idle {
         }
 
         Ok(())
+    }
+
+    pub async fn get_active(&self) -> anyhow::Result<bool> {
+        self.screen_saver
+            .get_active()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
+    }
+
+    pub async fn get_active_time(&self) -> anyhow::Result<u32> {
+        self.screen_saver
+            .get_active_time()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
+    }
+
+    pub fn get_inhibited(&self) -> bool {
+        self.cookie.is_some()
     }
 }
