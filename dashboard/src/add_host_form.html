@@ -1,0 +1,13 @@
+<h2>Add New Host</h2>
+<form hx-post="/add-host" hx-target="#add-host-modal-content" hx-swap="innerHTML">
+    <label for="host-name">Host Name:</label>
+    <input type="text" id="host-name" name="name" required>
+    <label for="host-ip">Host IP:</label>
+    <input type="text" id="host-ip" name="ip" required>
+    <label for="host-port">Host Port:</label>
+    <input type="number" id="host-port" name="port" required>
+    <div class="modal-actions">
+        <button type="button" class="modal-cancel">Cancel</button>
+        <button type="submit">Add Host</button>
+    </div>
+</form> 

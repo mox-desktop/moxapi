@@ -43,13 +43,10 @@
                   rust-analyzer-unwrapped
                   nixd
                   pkg-config
-                  deno
                   tailwindcss-language-server
                   vscode-langservers-extracted
-                  prettierd
-                  typescript-language-server
                   biome
-                  nodejs_24
+                  htmx-lsp2
                   ;
               };
           in
@@ -59,8 +56,9 @@
           };
       });
 
-      packages = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/server.nix {
+      packages = forAllSystems (
+        pkgs:
+        let
           rustPlatform =
             let
               rust-bin = pkgs.rust-bin.stable.latest.default;
@@ -69,8 +67,14 @@
               cargo = rust-bin;
               rustc = rust-bin;
             };
-        };
-      });
+          node = pkgs.callPackage ./nix/node.nix { inherit rustPlatform; };
+        in
+        {
+          inherit node;
+          default = node;
+          dashboard = pkgs.callPackage ./nix/dashboard.nix { inherit rustPlatform; };
+        }
+      );
 
       homeManagerModules = {
         default = import ./nix/home-manager.nix;
