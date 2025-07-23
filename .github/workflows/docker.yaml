@@ -2,7 +2,7 @@ name: Deploy images
 on:
   push:
     branches:
-      - main
+      - master
   release:
     types: [published]
 permissions:
@@ -32,7 +32,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Build and push server image
+      - name: Build and push image
         run: |
           echo "Building Docker image with Nix..."
           nix build .#dashboard
@@ -40,8 +40,8 @@ jobs:
           echo "Loading image into Docker..."
           docker load < result
           
-          BUILT_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep server | head -1)
-          echo "Built server image: $BUILT_IMAGE"
+          BUILT_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep dashboard | head -1)
+          echo "Built image: $BUILT_IMAGE"
           
           # Extract metadata
           BRANCH=${GITHUB_REF#refs/heads/}
@@ -49,32 +49,32 @@ jobs:
           IS_DEFAULT_BRANCH=${{ github.ref == 'refs/heads/main' }}
           IS_RELEASE=${{ github.event_name == 'release' }}
           
-          # Server tags
-          SERVER_TAGS=()
-          SERVER_TAGS+=("ghcr.io/unixpariah/moxapi:${BRANCH}")
-          SERVER_TAGS+=("ghcr.io/unixpariah/moxapi:${COMMIT_SHA}")
-          SERVER_TAGS+=("ghcr.io/unixpariah/moxapi:${BRANCH}-${COMMIT_SHA}")
+          # tags
+          TAGS=()
+          TAGS+=("ghcr.io/mox-desktop/moxapi:${BRANCH}")
+          TAGS+=("ghcr.io/mox-desktop/moxapi:${COMMIT_SHA}")
+          TAGS+=("ghcr.io/mox-desktop/moxapi:${BRANCH}-${COMMIT_SHA}")
           
           if [ "$IS_DEFAULT_BRANCH" = "true" ]; then
-            SERVER_TAGS+=("ghcr.io/unixpariah/moxapi:latest")
+            TAGS+=("ghcr.io/mox-desktop/moxapi:latest")
           fi
           
           if [ "$IS_RELEASE" = "true" ]; then
             TAG_NAME=${GITHUB_REF#refs/tags/}
-            SERVER_TAGS+=("ghcr.io/unixpariah/moxapi:${TAG_NAME}")
+            TAGS+=("ghcr.io/mox-desktop/moxapi:${TAG_NAME}")
             if [[ $TAG_NAME =~ ^v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-              SERVER_TAGS+=("ghcr.io/unixpariah/moxapi:${BASH_REMATCH[1]}")
+              TAGS+=("ghcr.io/mox-desktop/moxapi:${BASH_REMATCH[1]}")
             fi
           fi
           
-          # Tag and push server images
-          for tag in "${SERVER_TAGS[@]}"; do
-            echo "Tagging and pushing server: $tag"
+          # Tag and push images
+          for tag in "${TAGS[@]}"; do
+            echo "Tagging and pushing: $tag"
             docker tag "$BUILT_IMAGE" "$tag"
             docker push "$tag"
           done
           
-          # Clean up server image
+          # Clean up image
           docker rmi "$BUILT_IMAGE" || true
           rm -f result
           
