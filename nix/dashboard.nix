@@ -50,7 +50,7 @@ dockerTools.buildImage {
     Cmd = [ "/bin/${name}" ];
     WorkingDir = "/";
     ExposedPorts = {
-      "8000/tcp" = { };
+      "8080/tcp" = { };
     };
   };
 }
