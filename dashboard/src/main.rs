@@ -1,3 +1,5 @@
+mod config;
+
 use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
 use actix_web::cookie::Key;
 use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
@@ -5,18 +7,8 @@ use actix_web::{http::header, middleware::Logger};
 use askama::Template;
 use awc::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::env;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct Host {
-    ip: String,
-    api_key_file: String,
-    #[serde(skip)]
-    api_key: Option<String>,
-}
 
 #[derive(Template)]
 #[template(path = "dashboard.html")]
@@ -24,47 +16,6 @@ struct DashboardTemplate {
     hostname: String,
     ip: String,
     status: String,
-}
-
-fn resolve_config_path() -> Option<std::path::PathBuf> {
-    if let Some(arg_path) = env::args().nth(1) {
-        return Some(std::path::PathBuf::from(arg_path));
-    }
-    if let Ok(env_path) = env::var("MOXAPI_CONFIG") {
-        return Some(std::path::PathBuf::from(env_path));
-    }
-    if let Some(home) = dirs::config_dir() {
-        let fallback = home.join("mox/moxapi/hosts.yaml");
-        if fallback.exists() {
-            return Some(fallback);
-        }
-    }
-    let etc_path = std::path::PathBuf::from("/etc/moxapi/hosts.yaml");
-    if etc_path.exists() {
-        return Some(etc_path);
-    }
-
-    None
-}
-
-fn load_hosts() -> HashMap<String, Host> {
-    if let Some(config_path) = resolve_config_path() {
-        match std::fs::read_to_string(config_path) {
-            Ok(content) => {
-                let mut hosts: HashMap<String, Host> =
-                    serde_yaml::from_str(&content).unwrap_or_default();
-                for host in hosts.values_mut() {
-                    host.api_key = std::fs::read_to_string(&host.api_key_file)
-                        .ok()
-                        .map(|k| k.trim().to_string());
-                }
-                hosts
-            }
-            Err(_) => HashMap::new(),
-        }
-    } else {
-        HashMap::new()
-    }
 }
 
 #[get("/")]
@@ -93,14 +44,14 @@ struct Status {
 #[get("/status/{hostname}")]
 async fn get_status(
     path: web::Path<String>,
-    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+    data: web::Data<Arc<RwLock<config::Config>>>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let hostname = path.into_inner();
-    let hosts = data.read().await;
-    let host = hosts.get(&hostname).unwrap();
+    let config = data.read().await;
+    let host = config.hosts.get(&hostname).unwrap();
     let response = Client::default()
         .get(format!("{}/status", host.ip))
-        .insert_header(("Authorization", host.api_key.as_deref().unwrap_or("")))
+        .insert_header(("Authorization", host.api_key.clone()))
         .send()
         .await;
     Ok(HttpResponse::Ok().json(response.unwrap().json::<Status>().await.unwrap()))
@@ -118,20 +69,20 @@ async fn add_host_form() -> Result<HttpResponse, actix_web::Error> {
 
 #[get("/hosts")]
 async fn get_hosts(
-    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+    data: web::Data<Arc<RwLock<config::Config>>>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let hosts = data.read().await;
-    Ok(HttpResponse::Ok().json(&*hosts))
+    let config = data.read().await;
+    Ok(HttpResponse::Ok().json(&config.hosts))
 }
 
 #[get("/dashboard/{hostname}")]
 async fn dashboard(
     path: web::Path<String>,
-    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+    data: web::Data<Arc<RwLock<config::Config>>>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let hostname = path.into_inner();
-    let hosts = data.read().await;
-    let host = hosts.get(&hostname).unwrap();
+    let config = data.read().await;
+    let host = config.hosts.get(&hostname).unwrap();
     let template = DashboardTemplate {
         ip: host.ip.clone(),
         status: "online".to_string(),
@@ -148,11 +99,11 @@ async fn add_host(_form: web::Form<std::collections::HashMap<String, String>>) -
 #[post("/action/{hostname}/{action}")]
 async fn host_action(
     path: web::Path<(String, String)>,
-    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+    data: web::Data<Arc<RwLock<config::Config>>>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let (hostname, action) = path.into_inner();
-    let hosts = data.read().await;
-    if let Some(host) = hosts.get(&hostname) {
+    let config = data.read().await;
+    if let Some(host) = config.hosts.get(&hostname) {
         match action.as_str() {
             "lock" | "unlock" | "simulate-activity" | "inhibit" | "uninhibit" => {
                 let endpoint = match action.as_str() {
@@ -165,7 +116,7 @@ async fn host_action(
                 };
                 match Client::default()
                     .post(format!("{}{endpoint}", host.ip))
-                    .insert_header(("Authorization", host.api_key.as_deref().unwrap()))
+                    .insert_header(("Authorization", host.api_key.clone()))
                     .send()
                     .await
                 {
@@ -191,11 +142,10 @@ async fn host_action(
 
 #[post("/reload-config")]
 async fn reload_config(
-    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+    data: web::Data<Arc<RwLock<config::Config>>>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let new_hosts = load_hosts();
-    let mut hosts = data.write().await;
-    *hosts = new_hosts;
+    let mut config = data.write().await;
+    *config = config::Config::load().unwrap_or_default();
     Ok(HttpResponse::Ok().body("Config reloaded."))
 }
 
@@ -213,12 +163,15 @@ async fn login_form() -> Result<HttpResponse, actix_web::Error> {
 
 #[post("/login")]
 async fn login_post(
+    data: web::Data<Arc<RwLock<config::Config>>>,
     form: web::Form<std::collections::HashMap<String, String>>,
     session: Session,
 ) -> Result<HttpResponse, actix_web::Error> {
     if let Some(pass) = form.get("password") {
-        // TODO: obviously dont hardcode
-        if pass == "1234" {
+        let data = data.into_inner();
+        let config = data.read().await;
+
+        if pass == &config.password {
             session.insert("logged_in", true).unwrap();
             return Ok(HttpResponse::Found()
                 .append_header((header::LOCATION, "/"))
@@ -233,10 +186,11 @@ async fn login_post(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let secret = Key::generate();
-    let hosts = Arc::new(RwLock::new(load_hosts()));
+    let config = Arc::new(RwLock::new(config::Config::load().unwrap_or_default()));
+
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(hosts.clone()))
+            .app_data(web::Data::new(config.clone()))
             .wrap(Logger::default())
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
