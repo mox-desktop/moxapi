@@ -37,6 +37,8 @@ let
   root = runCommand "root" { } ''
     mkdir -p $out/bin
     cp ${rustBin}/bin/${name} $out/bin/
+    cp -r ${../dashboard/static} $out/static
+    cp -r ${../dashboard/templates} $out/templates
   '';
 
 in

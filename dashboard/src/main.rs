@@ -126,7 +126,6 @@ async fn dashboard(path: web::Path<String>) -> impl Responder {
 
 #[post("/add-host")]
 async fn add_host(_form: web::Form<std::collections::HashMap<String, String>>) -> impl Responder {
-    // This endpoint is now a no-op for config-based hosts
     HttpResponse::Ok().body("<div style='text-align:center;padding:2rem 0;'>Adding hosts is disabled. Edit config/hosts.yaml.</div>")
 }
 
