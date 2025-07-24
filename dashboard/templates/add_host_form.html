@@ -1,13 +1,31 @@
-<h2>Add New Host</h2>
-<form hx-post="/add-host" hx-target="#add-host-modal-content" hx-swap="innerHTML">
-  <label for="host-name">Host Name:</label>
-  <input type="text" id="host-name" name="name" required>
-  <label for="host-ip">Host IP:</label>
-  <input type="text" id="host-ip" name="ip" required>
-  <label for="host-port">Host Port:</label>
-  <input type="number" id="host-port" name="port" required>
-  <div class="modal-actions">
-    <button type="button" class="modal-cancel">Cancel</button>
-    <button type="submit">Add Host</button>
+<div role="dialog" id="radix-_r_0_" aria-describedby="radix-_r_2_" aria-labelledby="radix-_r_1_" data-state="open"
+  class="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 bg-zinc-900 p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg"
+  tabindex="-1" style="pointer-events: auto;">
+  <div class="flex flex-col space-y-1.5 text-center sm:text-left">
+    <h2 id="radix-_r_1_" class="text-lg font-semibold leading-none tracking-tight">Add New Desktop Host</h2>
+    <p id="radix-_r_2_" class="text-sm text-muted-foreground">Enter the IP address and name for the new desktop host.
+    </p>
   </div>
-</form>
+  <div class="grid gap-4 py-4">
+    <div class="grid gap-2"><label
+        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        for="host-name">Host Name</label><input
+        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        id="host-name" placeholder="e.g., Workstation-01" value=""></div>
+    <div class="grid gap-2"><label
+        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        for="host-ip">IP Address</label><input
+        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        id="host-ip" placeholder="e.g., 192.168.1.100" value=""></div>
+  </div>
+  <div class="flex justify-end gap-2"><button
+      class="modal-cancel ring-offset-background focus-visible:outline-hidden focus-visible:ring-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border-input bg-background hover:bg-accent hover:text-accent-foreground border h-10 px-4 py-2">Cancel</button><button
+      class="ring-offset-background focus-visible:outline-hidden focus-visible:ring-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">Add
+      Host</button></div><button type="button"
+    class="modal-cancel absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"><svg
+      xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x h-4 w-4">
+      <path d="M18 6 6 18"></path>
+      <path d="m6 6 12 12"></path>
+    </svg><span class="sr-only">Close</span></button>
+</div>

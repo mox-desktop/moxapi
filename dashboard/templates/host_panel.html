@@ -1,6 +1,7 @@
 <div class="host-panel p-6 text-center">
   <div class="flex items-center justify-center gap-4">
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="align-middle">
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="align-middle">
       <rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect>
       <rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect>
       <line x1="6" x2="6.01" y1="6" y2="6"></line>
@@ -11,13 +12,6 @@
       <div class="text-base text-zinc-400">{{ ip }}</div>
     </div>
     <div class="ml-8">
-      {% if status == "online" %}
-        <span class="inline-block px-4 py-1.5 rounded-full text-base bg-green-500 text-white font-medium">{{ status | capitalize }}</span>
-      {% elif status == "idle" %}
-        <span class="inline-block px-4 py-1.5 rounded-full text-base bg-yellow-400 text-zinc-900 font-medium">{{ status | capitalize }}</span>
-      {% else %}
-        <span class="inline-block px-4 py-1.5 rounded-full text-base bg-red-500 text-white font-medium">{{ status | capitalize }}</span>
-      {% endif %}
     </div>
   </div>
-</div> 
+</div>
