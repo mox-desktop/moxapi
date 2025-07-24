@@ -13,3 +13,4 @@ awc = "3"
 dirs = "5"
 serde_json = "1.0.141"
 actix-session = { version = "0.7", features = ["cookie-session"] }
+tokio = { version = "1.46.1", features = ["full"] }

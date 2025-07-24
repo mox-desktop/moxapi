@@ -1,14 +1,14 @@
-use actix_files::NamedFile;
-use actix_web::{App, HttpResponse, HttpServer, Responder, Result, get, post, web};
+use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
+use actix_web::cookie::Key;
+use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
+use actix_web::{http::header, middleware::Logger};
 use askama::Template;
 use awc::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
-use std::fs;
-use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
-use actix_web::{HttpRequest, http::header, middleware::Logger};
-use actix_web::cookie::Key;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct Host {
@@ -16,16 +16,6 @@ struct Host {
     api_key_file: String,
     #[serde(skip)]
     api_key: Option<String>,
-}
-
-impl Host {
-    fn with_api_key(mut self) -> Self {
-        match std::fs::read_to_string(&self.api_key_file) {
-            Ok(key) => self.api_key = Some(key.trim().to_string()),
-            Err(_) => self.api_key = None,
-        }
-        self
-    }
 }
 
 #[derive(Template)]
@@ -57,15 +47,39 @@ fn resolve_config_path() -> Option<std::path::PathBuf> {
     None
 }
 
-#[get("/")]
-async fn index(session: Session) -> impl Responder {
-    if session.get::<bool>("logged_in").unwrap_or(Some(false)).unwrap_or(false) {
-        match std::fs::read("static/index.html") {
-            Ok(body) => HttpResponse::Ok().content_type("text/html").body(body),
-            Err(_) => HttpResponse::InternalServerError().body("Failed to load index.html"),
+fn load_hosts() -> HashMap<String, Host> {
+    if let Some(config_path) = resolve_config_path() {
+        match std::fs::read_to_string(config_path) {
+            Ok(content) => {
+                let mut hosts: HashMap<String, Host> =
+                    serde_yaml::from_str(&content).unwrap_or_default();
+                for host in hosts.values_mut() {
+                    host.api_key = std::fs::read_to_string(&host.api_key_file)
+                        .ok()
+                        .map(|k| k.trim().to_string());
+                }
+                hosts
+            }
+            Err(_) => HashMap::new(),
         }
     } else {
-        HttpResponse::Found().append_header((header::LOCATION, "/login")).finish()
+        HashMap::new()
+    }
+}
+
+#[get("/")]
+async fn index(session: Session) -> Result<HttpResponse, actix_web::Error> {
+    if session
+        .get::<bool>("logged_in")
+        .unwrap_or(Some(false))
+        .unwrap_or(false)
+    {
+        let body = std::fs::read("static/index.html")?;
+        Ok(HttpResponse::Ok().content_type("text/html").body(body))
+    } else {
+        Ok(HttpResponse::Found()
+            .append_header((header::LOCATION, "/login"))
+            .finish())
     }
 }
 
@@ -77,26 +91,19 @@ struct Status {
 }
 
 #[get("/status/{hostname}")]
-async fn get_status(path: web::Path<String>) -> impl Responder {
+async fn get_status(
+    path: web::Path<String>,
+    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+) -> Result<HttpResponse, actix_web::Error> {
     let hostname = path.into_inner();
-    let config_path = resolve_config_path().unwrap();
-    let hosts: HashMap<String, Host> = match fs::read_to_string(config_path) {
-        Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
-        Err(_) => HashMap::new(),
-    };
-    let hosts_with_keys: HashMap<String, Host> = hosts
-        .into_iter()
-        .map(|(k, v)| (k, v.with_api_key()))
-        .collect();
-
-    let host = hosts_with_keys.get(&hostname).unwrap();
+    let hosts = data.read().await;
+    let host = hosts.get(&hostname).unwrap();
     let response = Client::default()
         .get(format!("{}/status", host.ip))
         .insert_header(("Authorization", host.api_key.as_deref().unwrap_or("")))
         .send()
         .await;
-
-    HttpResponse::Ok().json(response.unwrap().json::<Status>().await.unwrap())
+    Ok(HttpResponse::Ok().json(response.unwrap().json::<Status>().await.unwrap()))
 }
 
 #[derive(Template)]
@@ -104,49 +111,33 @@ async fn get_status(path: web::Path<String>) -> impl Responder {
 struct AddHostFormTemplate;
 
 #[get("/add-host-form")]
-async fn add_host_form() -> impl Responder {
+async fn add_host_form() -> Result<HttpResponse, actix_web::Error> {
     let template = AddHostFormTemplate;
-    HttpResponse::Ok().body(template.render().unwrap())
+    Ok(HttpResponse::Ok().body(template.render().unwrap()))
 }
 
 #[get("/hosts")]
-async fn get_hosts() -> impl Responder {
-    let hosts: HashMap<String, Host> = if let Some(config_path) = resolve_config_path() {
-        match fs::read_to_string(config_path) {
-            Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
-            Err(_) => HashMap::new(),
-        }
-    } else {
-        HashMap::new()
-    };
-    let hosts_with_keys: HashMap<String, Host> = hosts
-        .into_iter()
-        .map(|(k, v)| (k, v.with_api_key()))
-        .collect();
-    HttpResponse::Ok().json(hosts_with_keys)
+async fn get_hosts(
+    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let hosts = data.read().await;
+    Ok(HttpResponse::Ok().json(&*hosts))
 }
 
 #[get("/dashboard/{hostname}")]
-async fn dashboard(path: web::Path<String>) -> impl Responder {
+async fn dashboard(
+    path: web::Path<String>,
+    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+) -> Result<HttpResponse, actix_web::Error> {
     let hostname = path.into_inner();
-
-    let hosts: HashMap<String, Host> = if let Some(config_path) = resolve_config_path() {
-        match fs::read_to_string(config_path) {
-            Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
-            Err(_) => HashMap::new(),
-        }
-    } else {
-        HashMap::new()
-    };
-
+    let hosts = data.read().await;
     let host = hosts.get(&hostname).unwrap();
-
     let template = DashboardTemplate {
         ip: host.ip.clone(),
         status: "online".to_string(),
         hostname,
     };
-    HttpResponse::Ok().body(template.render().unwrap())
+    Ok(HttpResponse::Ok().body(template.render().unwrap()))
 }
 
 #[post("/add-host")]
@@ -155,19 +146,13 @@ async fn add_host(_form: web::Form<std::collections::HashMap<String, String>>) -
 }
 
 #[post("/action/{hostname}/{action}")]
-async fn host_action(path: web::Path<(String, String)>) -> impl Responder {
+async fn host_action(
+    path: web::Path<(String, String)>,
+    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+) -> Result<HttpResponse, actix_web::Error> {
     let (hostname, action) = path.into_inner();
-    let config_path = resolve_config_path().unwrap();
-    let hosts: HashMap<String, Host> = match fs::read_to_string(config_path) {
-        Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
-        Err(_) => HashMap::new(),
-    };
-    let hosts_with_keys: HashMap<String, Host> = hosts
-        .into_iter()
-        .map(|(k, v)| (k, v.with_api_key()))
-        .collect();
-
-    if let Some(host) = hosts_with_keys.get(&hostname) {
+    let hosts = data.read().await;
+    if let Some(host) = hosts.get(&hostname) {
         match action.as_str() {
             "lock" | "unlock" | "simulate-activity" | "inhibit" | "uninhibit" => {
                 let endpoint = match action.as_str() {
@@ -186,82 +171,72 @@ async fn host_action(path: web::Path<(String, String)>) -> impl Responder {
                 {
                     Ok(resp) => {
                         if resp.status().is_success() {
-                            HttpResponse::Ok().body(format!("{action} command sent successfully!"))
+                            Ok(HttpResponse::Ok()
+                                .body(format!("{action} command sent successfully!")))
                         } else {
-                            HttpResponse::InternalServerError()
-                                .body(format!("Failed to send {action} command."))
+                            Ok(HttpResponse::InternalServerError()
+                                .body(format!("Failed to send {action} command.")))
                         }
                     }
-                    Err(_) => HttpResponse::InternalServerError()
-                        .body(format!("Failed to send {action} command.")),
+                    Err(_) => Ok(HttpResponse::InternalServerError()
+                        .body(format!("Failed to send {action} command."))),
                 }
             }
-            _ => HttpResponse::BadRequest().body("Unknown action"),
+            _ => Ok(HttpResponse::BadRequest().body("Unknown action")),
         }
     } else {
-        HttpResponse::NotFound().body("Host not found")
+        Ok(HttpResponse::NotFound().body("Host not found"))
     }
+}
+
+#[post("/reload-config")]
+async fn reload_config(
+    data: web::Data<Arc<RwLock<HashMap<String, Host>>>>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let new_hosts = load_hosts();
+    let mut hosts = data.write().await;
+    *hosts = new_hosts;
+    Ok(HttpResponse::Ok().body("Config reloaded."))
+}
+
+#[derive(Template)]
+#[template(path = "login.html")]
+struct LoginTemplate {
+    incorrect: bool,
 }
 
 #[get("/login")]
-async fn login_form() -> impl Responder {
-    let html = r#"
-    <html><head><title>Login</title></head><body style='background:#111;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;'>
-    <form method='post' action='/login' style='background:#222;padding:2rem;border-radius:1rem;box-shadow:0 0 10px #000;'>
-      <h2 style='margin-bottom:1rem;'>Login</h2>
-      <input type='password' name='password' placeholder='Password' style='padding:0.5rem;width:100%;margin-bottom:1rem;border-radius:0.5rem;border:none;'/><br/>
-      <button type='submit' style='padding:0.5rem 2rem;border-radius:0.5rem;border:none;background:#fff;color:#111;font-weight:bold;'>Login</button>
-    </form>
-    </body></html>
-    "#;
-    HttpResponse::Ok().content_type("text/html").body(html)
+async fn login_form() -> Result<HttpResponse, actix_web::Error> {
+    let template = LoginTemplate { incorrect: false };
+    Ok(HttpResponse::Ok().body(template.render().unwrap()))
 }
 
 #[post("/login")]
-async fn login_post(form: web::Form<std::collections::HashMap<String, String>>, session: Session) -> impl Responder {
+async fn login_post(
+    form: web::Form<std::collections::HashMap<String, String>>,
+    session: Session,
+) -> Result<HttpResponse, actix_web::Error> {
     if let Some(pass) = form.get("password") {
+        // TODO: obviously dont hardcode
         if pass == "1234" {
             session.insert("logged_in", true).unwrap();
-            return HttpResponse::Found().append_header((header::LOCATION, "/")).finish();
+            return Ok(HttpResponse::Found()
+                .append_header((header::LOCATION, "/"))
+                .finish());
         }
     }
-    let html = r#"
-    <html><head><title>Login</title></head><body style='background:#111;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;'>
-    <form method='post' action='/login' style='background:#222;padding:2rem;border-radius:1rem;box-shadow:0 0 10px #000;'>
-      <h2 style='margin-bottom:1rem;'>Login</h2>
-      <input type='password' name='password' placeholder='Password' style='padding:0.5rem;width:100%;margin-bottom:1rem;border-radius:0.5rem;border:none;'/><br/>
-      <div style='color:#f44;margin-bottom:1rem;'>Incorrect password</div>
-      <button type='submit' style='padding:0.5rem 2rem;border-radius:0.5rem;border:none;background:#fff;color:#111;font-weight:bold;'>Login</button>
-    </form>
-    </body></html>
-    "#;
-    HttpResponse::Ok().content_type("text/html").body(html)
-}
 
-fn is_logged_in(session: &Session) -> bool {
-    session.get::<bool>("logged_in").unwrap_or(Some(false)).unwrap_or(false)
-}
-
-// Wrap handlers to require login
-macro_rules! require_login {
-    ($handler:expr) => {{
-        |req: HttpRequest, payload: web::Payload, session: Session| {
-            if is_logged_in(&session) {
-                $handler(req, payload, session)
-            } else {
-                Box::pin(async {
-                    HttpResponse::Found().append_header((header::LOCATION, "/login")).finish()
-                })
-            }
-        }
-    }};
+    let template = LoginTemplate { incorrect: true };
+    Ok(HttpResponse::Ok().body(template.render().unwrap()))
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let secret = Key::generate();
+    let hosts = Arc::new(RwLock::new(load_hosts()));
     HttpServer::new(move || {
         App::new()
+            .app_data(web::Data::new(hosts.clone()))
             .wrap(Logger::default())
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
@@ -269,7 +244,6 @@ async fn main() -> std::io::Result<()> {
             ))
             .service(login_form)
             .service(login_post)
-            // All other routes require login
             .service(index)
             .service(add_host_form)
             .service(add_host)
@@ -277,6 +251,7 @@ async fn main() -> std::io::Result<()> {
             .service(dashboard)
             .service(host_action)
             .service(get_status)
+            .service(reload_config)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

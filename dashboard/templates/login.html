@@ -1,0 +1,18 @@
+<html>
+
+<head>
+  <title>Login</title>
+</head>
+
+<body style='background:#111;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;'>
+  <form method='post' action='/login' style='background:#222;padding:2rem;border-radius:1rem;box-shadow:0 0 10px #000;'>
+    <h2 style='margin-bottom:1rem;'>Login</h2>
+    <input type='password' name='password' placeholder='Password'
+      style='padding:0.5rem;width:100%;margin-bottom:1rem;border-radius:0.5rem;border:none;' /><br />
+    {% if incorrect %}<div style='color:#f44;margin-bottom:1rem;'>Incorrect password</div>{% endif %}
+    <button type='submit'
+      style='padding:0.5rem 2rem;border-radius:0.5rem;border:none;background:#fff;color:#111;font-weight:bold;'>Login</button>
+  </form>
+</body>
+
+</html>
