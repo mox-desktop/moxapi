@@ -30,13 +30,16 @@
     }
 
     .header-content {
-      width: 25%;
-      min-width: 200px;
-      max-width: 400px;
-      padding-left: 10%;
+      width: 80%;
+      min-width: 300px;
+      max-width: 80%;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      justify-content: space-between;
+      padding-left: 0;
+      padding-right: 0;
     }
 
     .text-xl {
@@ -68,6 +71,8 @@
       padding: 0.5rem 1rem;
       cursor: pointer;
       color: #e4e4e7;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .button-add-host:hover {
@@ -99,16 +104,21 @@
     /* Modal styles */
     .modal-overlay {
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.7);
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
       display: none;
       align-items: center;
       justify-content: center;
       z-index: 1000;
     }
+
     .modal-overlay.active {
       display: flex;
     }
+
     .modal {
       background: #18181b;
       color: #e4e4e7;
@@ -119,17 +129,20 @@
       box-shadow: 0 4px 32px #000a;
       position: relative;
     }
+
     .modal h2 {
       font-size: 1.1rem;
       font-weight: 600;
       margin-bottom: 0.5rem;
     }
+
     .modal label {
       display: block;
       margin-bottom: 0.25rem;
       font-size: 0.95rem;
       font-weight: 500;
     }
+
     .modal input {
       width: 100%;
       padding: 0.5rem;
@@ -140,11 +153,13 @@
       margin-bottom: 1rem;
       font-size: 1rem;
     }
+
     .modal .modal-actions {
       display: flex;
       justify-content: flex-end;
       gap: 0.5rem;
     }
+
     .modal button {
       font-size: 0.95rem;
       padding: 0.4rem 1rem;
@@ -155,14 +170,17 @@
       cursor: pointer;
       transition: background 0.2s, color 0.2s;
     }
+
     .modal button[type="submit"] {
       background: #2563eb;
       color: #fff;
       border: none;
     }
+
     .modal button:hover {
       background: #27272a;
     }
+
     .modal button[type="submit"]:hover {
       background: #1d4ed8;
     }
@@ -204,12 +222,17 @@
         height: 2.5rem;
       }
     }
+
     .host-tabs {
       display: flex;
+      flex-wrap: wrap;
       gap: 0.75rem;
-      margin: 2rem 0 1rem 0;
-      padding-left: 10%;
+      margin: 2rem auto 1rem auto;
+      max-width: 80%;
+      min-width: 300px;
+      justify-content: flex-start;
     }
+
     .host-tab {
       display: flex;
       align-items: center;
@@ -224,7 +247,10 @@
       transition: background 0.2s, box-shadow 0.2s, color 0.2s, border 0.2s;
       min-width: 220px;
       position: relative;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
+
     .host-tab.selected {
       background: #18181b;
       color: #fff;
@@ -232,23 +258,28 @@
       box-shadow: 0 4px 16px #0002;
       z-index: 2;
     }
+
     .host-tab:hover:not(.selected) {
       background: #fff;
       color: #18181b;
       border: 1.5px solid #fff;
     }
+
     .host-tab .monitor-icon {
       width: 24px;
       height: 24px;
       color: #a1a1aa;
       transition: color 0.2s;
     }
+
     .host-tab.selected .monitor-icon {
       color: #fff;
     }
+
     .host-tab:hover:not(.selected) .monitor-icon {
       color: #18181b;
     }
+
     .status-dot {
       width: 10px;
       height: 10px;
@@ -259,24 +290,37 @@
       background: #a1a1aa;
       transition: background 0.2s;
     }
-    .status-dot.online { background: #22c55e; }
-    .status-dot.idle { background: #facc15; }
-    .status-dot.offline { background: #ef4444; }
+
+    .status-dot.online {
+      background: #22c55e;
+    }
+
+    .status-dot.idle {
+      background: #facc15;
+    }
+
+    .status-dot.offline {
+      background: #ef4444;
+    }
+
     .host-info {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       flex: 1;
     }
+
     .host-name {
       font-weight: 600;
       font-size: 1rem;
       margin-bottom: 0.1rem;
     }
+
     .host-ip {
       font-size: 0.92rem;
       color: #a1a1aa;
     }
+
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -291,14 +335,17 @@
       text-transform: capitalize;
       transition: background 0.2s, color 0.2s;
     }
+
     .status-badge.online {
       background: #22c55e;
       color: #fff;
     }
+
     .status-badge.idle {
       background: #facc15;
       color: #222;
     }
+
     .status-badge.offline {
       background: #ef4444;
       color: #fff;
@@ -309,15 +356,27 @@
 <body>
   <div class="header-bar">
     <div class="header-content">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        class="lucide lucide-server h-6 w-6" aria-hidden="true">
-        <rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect>
-        <rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect>
-        <line x1="6" x2="6.01" y1="6" y2="6"></line>
-        <line x1="6" x2="6.01" y1="18" y2="18"></line>
-      </svg>
-      <h1 class="text-xl font-semibold">Desktop Host Manager</h1>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          class="lucide lucide-server h-6 w-6" aria-hidden="true">
+          <rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect>
+          <rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect>
+          <line x1="6" x2="6.01" y1="6" y2="6"></line>
+          <line x1="6" x2="6.01" y1="18" y2="18"></line>
+        </svg>
+        <h1 class="text-xl font-semibold">Desktop Host Manager</h1>
+      </div>
+      <button class="button-add-host" id="add-host-btn" hx-get="/add-host-form" hx-target="#add-host-modal-content"
+        hx-trigger="click" hx-swap="innerHTML">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          class="lucide lucide-plus">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Add Host
+      </button>
     </div>
   </div>
   <hr class="separator" />
@@ -326,16 +385,7 @@
       <div class="section-title">Host Management</div>
       <div class="section-desc">Manage your desktop hosts and their configurations</div>
     </div>
-    <button class="button-add-host" id="add-host-btn"
-      hx-get="/add-host-form" hx-target="#add-host-modal-content" hx-trigger="click" hx-swap="innerHTML">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        class="lucide lucide-plus">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-      Add Host
-    </button>
+    <!-- Removed Add Host button from here -->
   </div>
   <!-- Host tabs and panel -->
   <div id="host-tabs" class="host-tabs"></div>
@@ -361,19 +411,19 @@
   </div>
   <script>
     // Show modal when htmx loads content into it
-    document.body.addEventListener('htmx:afterSwap', function(evt) {
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
       if (evt.detail.target.id === 'add-host-modal-content') {
         document.getElementById('add-host-modal').classList.add('active');
       }
     });
     // Hide modal on cancel or successful submit
-    document.body.addEventListener('click', function(evt) {
+    document.body.addEventListener('click', function (evt) {
       if (evt.target.matches('.modal-cancel')) {
         document.getElementById('add-host-modal').classList.remove('active');
         document.getElementById('add-host-modal-content').innerHTML = '';
       }
     });
-    document.body.addEventListener('htmx:afterRequest', function(evt) {
+    document.body.addEventListener('htmx:afterRequest', function (evt) {
       if (evt.detail.target.id === 'add-host-modal-content' && evt.detail.xhr.status === 200 && evt.detail.requestConfig.verb === 'post') {
         document.getElementById('add-host-modal').classList.remove('active');
         document.getElementById('add-host-modal-content').innerHTML = '';
@@ -386,7 +436,8 @@
         const tabs = document.getElementById('host-tabs');
         tabs.innerHTML = '';
         let selected = null;
-        hosts.forEach((host, idx) => {
+        let idx = 0;
+        for (const [hostname, host] of Object.entries(hosts)) {
           const status = idx === 0 ? 'online' : idx === 1 ? 'idle' : 'offline';
           const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
           const btn = document.createElement('button');
@@ -397,20 +448,20 @@
               <span class="status-dot ${status}"></span>
             </div>
             <div class="host-info">
-              <span class="host-name">${host.hostname}</span>
+              <span class="host-name">${hostname}</span>
               <span class="host-ip">${host.ip}</span>
             </div>
             <span class="status-badge ${status}">${statusLabel}</span>
           `;
-          btn.setAttribute('hx-get', `/host-panel/${encodeURIComponent(host.hostname)}`);
+          btn.setAttribute('hx-get', `/host-panel/${encodeURIComponent(hostname)}`);
           btn.setAttribute('hx-target', '#host-panel');
           btn.setAttribute('hx-swap', 'innerHTML');
-          btn.addEventListener('click', function() {
+          btn.addEventListener('click', function () {
             if (selected) selected.classList.remove('selected');
             btn.classList.add('selected');
             selected = btn;
             // Load dashboard for this host
-            htmx.ajax('GET', `/dashboard/${encodeURIComponent(host.hostname)}`, '#dashboard');
+            htmx.ajax('GET', `/dashboard/${encodeURIComponent(hostname)}`, '#dashboard');
           });
           if (idx === 0) {
             btn.classList.add('selected');
@@ -418,11 +469,12 @@
             // Load first host panel and dashboard by default
             setTimeout(() => {
               btn.click();
-              htmx.ajax('GET', `/dashboard/${encodeURIComponent(host.hostname)}`, '#dashboard');
+              htmx.ajax('GET', `/dashboard/${encodeURIComponent(hostname)}`, '#dashboard');
             }, 0);
           }
           tabs.appendChild(btn);
-        });
+          idx++;
+        }
       });
   </script>
 </body>

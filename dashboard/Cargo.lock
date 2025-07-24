@@ -491,6 +491,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashboard"
+version = "0.1.0"
+dependencies = [
+ "actix-files",
+ "actix-web",
+ "askama",
+ "awc",
+ "dirs",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
 name = "deranged"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1310,19 +1323,6 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
-]
-
-[[package]]
-name = "server"
-version = "0.1.0"
-dependencies = [
- "actix-files",
- "actix-web",
- "askama",
- "awc",
- "dirs",
- "serde",
- "serde_yaml",
 ]
 
 [[package]]

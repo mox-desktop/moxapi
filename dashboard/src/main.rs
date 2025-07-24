@@ -3,12 +3,12 @@ use actix_web::{App, HttpResponse, HttpServer, Responder, Result, get, post, web
 use askama::Template;
 use awc::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct Host {
-    hostname: String,
     ip: String,
     api_key_file: String,
     #[serde(skip)]
@@ -39,29 +39,25 @@ struct DashboardTemplate {
     hostname: String,
 }
 
-fn resolve_config_path() -> std::path::PathBuf {
-    // 1. CLI argument
+fn resolve_config_path() -> Option<std::path::PathBuf> {
     if let Some(arg_path) = env::args().nth(1) {
-        return std::path::PathBuf::from(arg_path);
+        return Some(std::path::PathBuf::from(arg_path));
     }
-    // 2. Environment variable
     if let Ok(env_path) = env::var("MOXAPI_CONFIG") {
-        return std::path::PathBuf::from(env_path);
+        return Some(std::path::PathBuf::from(env_path));
     }
-    // 3. /etc/moxapi/hosts.yaml
-    let etc_path = std::path::PathBuf::from("/etc/moxapi/hosts.yaml");
-    if etc_path.exists() {
-        return etc_path;
-    }
-    // 4. ~/.config/mox/moxapi/hosts.yaml
-    if let Some(home) = dirs::home_dir() {
-        let fallback = home.join(".config/mox/moxapi/hosts.yaml");
+    if let Some(home) = dirs::config_dir() {
+        let fallback = home.join("mox/moxapi/hosts.yaml");
         if fallback.exists() {
-            return fallback;
+            return Some(fallback);
         }
     }
-    // Default to ./config/hosts.yaml for dev
-    std::path::PathBuf::from("config/hosts.yaml")
+    let etc_path = std::path::PathBuf::from("/etc/moxapi/hosts.yaml");
+    if etc_path.exists() {
+        return Some(etc_path);
+    }
+
+    None
 }
 
 #[get("/")]
@@ -81,48 +77,39 @@ async fn add_host_form() -> impl Responder {
 
 #[get("/hosts")]
 async fn get_hosts() -> impl Responder {
-    let config_path = resolve_config_path();
-    let hosts: Vec<Host> = if config_path.exists() {
+    let hosts: HashMap<String, Host> = if let Some(config_path) = resolve_config_path() {
         match fs::read_to_string(config_path) {
             Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
-            Err(_) => vec![],
+            Err(_) => HashMap::new(),
         }
     } else {
-        vec![]
+        HashMap::new()
     };
-    let hosts_with_keys: Vec<_> = hosts.into_iter().map(|h| h.with_api_key()).collect();
+    let hosts_with_keys: HashMap<String, Host> = hosts
+        .into_iter()
+        .map(|(k, v)| (k, v.with_api_key()))
+        .collect();
     HttpResponse::Ok().json(hosts_with_keys)
 }
 
 #[get("/host-panel/{hostname}")]
 async fn host_panel(path: web::Path<String>) -> impl Responder {
     let hostname = path.into_inner();
-    let config_path = resolve_config_path();
-    let hosts: Vec<Host> = if config_path.exists() {
-        match fs::read_to_string(config_path) {
-            Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
-            Err(_) => vec![],
-        }
-    } else {
-        vec![]
+    let config_path = resolve_config_path().unwrap();
+    let hosts: HashMap<String, Host> = match fs::read_to_string(config_path) {
+        Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
+        Err(_) => HashMap::new(),
     };
-    let hosts_with_keys: Vec<_> = hosts.into_iter().map(|h| h.with_api_key()).collect();
-    if let Some((idx, host)) = hosts_with_keys
-        .iter()
-        .enumerate()
-        .find(|(_, h)| h.hostname == hostname)
-    {
-        let status = if idx == 0 {
-            "online"
-        } else if idx == 1 {
-            "idle"
-        } else {
-            "offline"
-        };
+    let hosts_with_keys: HashMap<String, Host> = hosts
+        .into_iter()
+        .map(|(k, v)| (k, v.with_api_key()))
+        .collect();
+
+    if let Some((k, v)) = hosts_with_keys.get_key_value(&hostname) {
         let template = HostPanelTemplate {
-            hostname: host.hostname.clone(),
-            ip: host.ip.clone(),
-            status: status.to_string(),
+            hostname: k.clone(),
+            ip: v.ip.clone(),
+            status: "online".to_string(),
         };
         HttpResponse::Ok().body(template.render().unwrap())
     } else {
@@ -146,17 +133,17 @@ async fn add_host(_form: web::Form<std::collections::HashMap<String, String>>) -
 #[post("/action/{hostname}/{action}")]
 async fn host_action(path: web::Path<(String, String)>) -> impl Responder {
     let (hostname, action) = path.into_inner();
-    let config_path = resolve_config_path();
-    let hosts: Vec<Host> = if config_path.exists() {
-        match fs::read_to_string(config_path) {
-            Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
-            Err(_) => vec![],
-        }
-    } else {
-        vec![]
+    let config_path = resolve_config_path().unwrap();
+    let hosts: HashMap<String, Host> = match fs::read_to_string(config_path) {
+        Ok(content) => serde_yaml::from_str(&content).unwrap_or_default(),
+        Err(_) => HashMap::new(),
     };
-    let hosts_with_keys: Vec<_> = hosts.into_iter().map(|h| h.with_api_key()).collect();
-    if let Some(host) = hosts_with_keys.iter().find(|h| h.hostname == hostname) {
+    let hosts_with_keys: HashMap<String, Host> = hosts
+        .into_iter()
+        .map(|(k, v)| (k, v.with_api_key()))
+        .collect();
+
+    if let Some(host) = hosts_with_keys.get(&hostname) {
         let ip = &host.ip;
         let api_key = host.api_key.as_deref().unwrap_or("");
         match action.as_str() {
