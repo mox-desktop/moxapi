@@ -6,6 +6,7 @@ use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
 use actix_web::{http::header, middleware::Logger};
 use askama::Template;
 use awc::Client;
+use chrono_humanize::{Accuracy, Tense};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -15,7 +16,8 @@ use tokio::sync::RwLock;
 struct DashboardTemplate {
     hostname: String,
     ip: String,
-    status: String,
+    status: &'static str,
+    last_seen: String,
 }
 
 #[get("/")]
@@ -34,7 +36,7 @@ async fn index(session: Session) -> Result<HttpResponse, actix_web::Error> {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 struct Status {
     active: bool,
     active_time: u32,
@@ -54,7 +56,8 @@ async fn get_status(
         .insert_header(("Authorization", host.api_key.clone()))
         .send()
         .await;
-    Ok(HttpResponse::Ok().json(response.unwrap().json::<Status>().await.unwrap()))
+
+    Ok(HttpResponse::Ok().json(response.unwrap().json::<Status>().await.unwrap_or_default()))
 }
 
 #[derive(Template)]
@@ -82,11 +85,56 @@ async fn dashboard(
 ) -> Result<HttpResponse, actix_web::Error> {
     let hostname = path.into_inner();
     let config = data.read().await;
-    let host = config.hosts.get(&hostname).unwrap();
+    let host = match config.hosts.get(&hostname) {
+        Some(h) => h,
+        None => return Ok(HttpResponse::NotFound().body("Host not found")),
+    };
+
+    let response = Client::default()
+        .get(format!("{}/status", host.ip))
+        .insert_header(("Authorization", host.api_key.clone()))
+        .send()
+        .await;
+
+    let mut response = match response {
+        Ok(resp) => resp,
+        Err(_) => {
+            let template = DashboardTemplate {
+                ip: host.ip.clone(),
+                status: "offline",
+                hostname,
+                last_seen: "now".to_string(),
+            };
+            return Ok(HttpResponse::Ok().body(template.render().unwrap()));
+        }
+    };
+
+    let status: Status = match response.json().await {
+        Ok(s) => s,
+        Err(_) => {
+            let template = DashboardTemplate {
+                ip: host.ip.clone(),
+                status: "offline",
+                hostname,
+                last_seen: "now".to_string(),
+            };
+            return Ok(HttpResponse::Ok().body(template.render().unwrap()));
+        }
+    };
+
+    let dt = chrono::Local::now() - chrono::Duration::seconds(status.active_time as i64);
+    let ht = chrono_humanize::HumanTime::from(dt);
+
+    let status = match status.active {
+        true => "idle",
+        false => "online",
+    };
+
     let template = DashboardTemplate {
         ip: host.ip.clone(),
-        status: "online".to_string(),
+        status,
         hostname,
+        last_seen: ht.to_text_en(Accuracy::Rough, Tense::Present),
     };
     Ok(HttpResponse::Ok().body(template.render().unwrap()))
 }
@@ -103,40 +151,39 @@ async fn host_action(
 ) -> Result<HttpResponse, actix_web::Error> {
     let (hostname, action) = path.into_inner();
     let config = data.read().await;
-    if let Some(host) = config.hosts.get(&hostname) {
-        match action.as_str() {
-            "lock" | "unlock" | "simulate-activity" | "inhibit" | "uninhibit" => {
-                let endpoint = match action.as_str() {
-                    "lock" => "/idle/lock",
-                    "unlock" => "/idle/unlock",
-                    "simulate-activity" => "/idle/simulate_user_activity",
-                    "inhibit" => "/idle/inhibit",
-                    "uninhibit" => "/idle/uninhibit",
-                    _ => unreachable!(),
-                };
-                match Client::default()
-                    .post(format!("{}{endpoint}", host.ip))
-                    .insert_header(("Authorization", host.api_key.clone()))
-                    .send()
-                    .await
-                {
-                    Ok(resp) => {
-                        if resp.status().is_success() {
-                            Ok(HttpResponse::Ok()
-                                .body(format!("{action} command sent successfully!")))
-                        } else {
-                            Ok(HttpResponse::InternalServerError()
-                                .body(format!("Failed to send {action} command.")))
-                        }
-                    }
-                    Err(_) => Ok(HttpResponse::InternalServerError()
-                        .body(format!("Failed to send {action} command."))),
-                }
-            }
-            _ => Ok(HttpResponse::BadRequest().body("Unknown action")),
-        }
+
+    let host = config
+        .hosts
+        .get(&hostname)
+        .ok_or_else(|| actix_web::error::ErrorNotFound("Host not found"))?;
+
+    let endpoint = match action.as_str() {
+        "lock" => "/idle/lock",
+        "unlock" => "/idle/unlock",
+        "simulate-activity" => "/idle/simulate_user_activity",
+        "inhibit" => "/idle/inhibit",
+        "uninhibit" => "/idle/uninhibit",
+        _ => return Ok(HttpResponse::BadRequest().body("Unknown action")),
+    };
+
+    let resp = Client::default()
+        .post(format!("{}{endpoint}", host.ip))
+        .insert_header(("Authorization", host.api_key.clone()))
+        .send()
+        .await
+        .map_err(|e| {
+            actix_web::error::ErrorInternalServerError(format!(
+                "Failed to send {action} command: {e}"
+            ))
+        })?;
+
+    if resp.status().is_success() {
+        Ok(HttpResponse::Ok().body(format!("{action} command sent successfully!")))
     } else {
-        Ok(HttpResponse::NotFound().body("Host not found"))
+        Err(actix_web::error::ErrorInternalServerError(format!(
+            "Failed to send {action} command. Status: {}",
+            resp.status()
+        )))
     }
 }
 
@@ -192,10 +239,11 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(config.clone()))
             .wrap(Logger::default())
-            .wrap(SessionMiddleware::new(
-                CookieSessionStore::default(),
-                secret.clone(),
-            ))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), secret.clone())
+                    .cookie_secure(false)
+                    .build(),
+            )
             .service(login_form)
             .service(login_post)
             .service(index)
@@ -206,6 +254,7 @@ async fn main() -> std::io::Result<()> {
             .service(host_action)
             .service(get_status)
             .service(reload_config)
+            .service(actix_files::Files::new("/static", "./static").show_files_listing())
     })
     .bind(("0.0.0.0", 8080))?
     .run()

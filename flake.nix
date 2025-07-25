@@ -43,10 +43,11 @@
                   rust-analyzer-unwrapped
                   nixd
                   pkg-config
-                  tailwindcss-language-server
                   vscode-langservers-extracted
                   biome
                   htmx-lsp2
+                  tailwindcss
+                  tailwindcss-language-server
                   ;
               };
           in

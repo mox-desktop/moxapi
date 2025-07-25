@@ -6,7 +6,8 @@
   <title>htmx App</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="/static/input.css" rel="stylesheet">
+  <link href="/static/output.css" rel="stylesheet">
 </head>
 
 <body class="bg-zinc-950 text-zinc-200 font-sans w-full min-h-screen p-0 m-0">
@@ -56,7 +57,87 @@
       id="add-host-modal-content">
     </div>
   </div>
+  <div id="loading-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(255,255,255,0.85); z-index:2000; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+    <div id="loading-overlay-waiting" style="margin-bottom:0.5rem; font-size:1.5rem; font-weight:bold; color:#222;">Waiting...</div>
+    <div id="loading-overlay-countdown" style="font-size:1.1rem; color:#222;"></div>
+    <div style="border: 4px solid #e5e7eb; border-top: 4px solid #222; border-radius: 50%; width: 48px; height: 48px; animation: spin 1s linear infinite; margin-top:1.5rem;"></div>
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  </div>
   <script>
+    var loadingOverlayTimer = null;
+    var loadingOverlayShown = false;
+    var loadingOverlayRequestActive = false;
+    var loadingOverlayCountdown = null;
+    var loadingOverlayCountdownValue = 4;
+    var loadingOverlayHostname = '';
+
+    document.body.addEventListener('htmx:beforeRequest', function(evt) {
+      var url = '';
+      // Try to get URL from element attributes
+      if (evt.detail.elt && evt.detail.elt.getAttribute('hx-post')) {
+        url = evt.detail.elt.getAttribute('hx-post');
+      } else if (evt.detail.elt && evt.detail.elt.getAttribute('hx-get')) {
+        url = evt.detail.elt.getAttribute('hx-get');
+      }
+      // Fallback: get URL from htmx.ajax or programmatic requests
+      if (!url && evt.detail.requestConfig && evt.detail.requestConfig.path) {
+        url = evt.detail.requestConfig.path;
+      }
+      var match = url.match(/\/(?:action|dashboard)\/([^/]+)/);
+      if (match) {
+        var hostname = decodeURIComponent(match[1]);
+        loadingOverlayHostname = hostname;
+        document.getElementById('loading-overlay-waiting').textContent = 'Waiting for ' + hostname + '...';
+        document.getElementById('loading-overlay-countdown').textContent = '';
+        loadingOverlayShown = false;
+        loadingOverlayRequestActive = true;
+        loadingOverlayTimer = setTimeout(function() {
+          if (loadingOverlayRequestActive) {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            loadingOverlayShown = true;
+            // Start countdown
+            loadingOverlayCountdownValue = 4;
+            updateLoadingOverlayText();
+            loadingOverlayCountdown = setInterval(function() {
+              loadingOverlayCountdownValue--;
+              if (loadingOverlayCountdownValue > 0) {
+                updateLoadingOverlayText();
+              } else {
+                document.getElementById('loading-overlay-countdown').textContent = 'Timed out.';
+                clearInterval(loadingOverlayCountdown);
+                loadingOverlayCountdown = null;
+              }
+            }, 1000);
+          }
+        }, 1000);
+      }
+    });
+
+    function updateLoadingOverlayText() {
+      document.getElementById('loading-overlay-countdown').textContent = 'Trying to connect... quitting in ' + loadingOverlayCountdownValue;
+    }
+
+    function hideLoadingOverlay() {
+      loadingOverlayRequestActive = false;
+      if (loadingOverlayTimer) {
+        clearTimeout(loadingOverlayTimer);
+        loadingOverlayTimer = null;
+      }
+      if (loadingOverlayCountdown) {
+        clearInterval(loadingOverlayCountdown);
+        loadingOverlayCountdown = null;
+      }
+      document.getElementById('loading-overlay').style.display = 'none';
+      loadingOverlayShown = false;
+    }
+
+    document.body.addEventListener('htmx:afterRequest', hideLoadingOverlay);
+    document.body.addEventListener('htmx:responseError', hideLoadingOverlay);
     document.body.addEventListener('htmx:afterSwap', function (evt) {
       console.log('htmx:afterSwap fired', evt.detail);
       if (evt.detail.target.id === 'add-host-modal-content') {
@@ -83,12 +164,6 @@
         let selected = null;
         let idx = 0;
         for (const [hostname, host] of Object.entries(hosts)) {
-          fetch(`/status/${encodeURIComponent(hostname)}`, {
-            method: 'GET',
-          })
-            .then(response => response.json())
-            .then(stat => stat);
-
           const status = idx === 0 ? 'online' : idx === 1 ? 'idle' : 'offline';
           const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
           const btn = document.createElement('button');

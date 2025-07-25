@@ -43,3 +43,12 @@ docker run \
 ```
 
 Or use Docker secrets with Swarm/Kubernetes and mount them at the paths referenced in your config. 
+
+## Licensing
+
+This project is dual-licensed:
+
+- **Individuals:** Free for personal, non-commercial use under the GNU AGPL v3.0 (or later). See LICENSE-AGPL for details.
+- **Companies/Organizations:** Commercial use requires a paid license. Please contact the author for commercial licensing options.
+
+For questions or to obtain a commercial license, email: <your-email@example.com> 
