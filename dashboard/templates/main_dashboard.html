@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
-
 <head>
   <meta charset="UTF-8">
   <title>htmx App</title>
@@ -9,7 +8,6 @@
   <link href="/static/input.css" rel="stylesheet">
   <link href="/static/output.css" rel="stylesheet">
 </head>
-
 <body class="bg-zinc-950 text-zinc-200 font-sans w-full min-h-screen p-0 m-0">
   <div class="header-bar py-2 pb-1">
     <div class="header-content w-4/5 min-w-[300px] max-w-4/5 mx-auto flex items-center gap-2 justify-between px-0">
@@ -43,12 +41,28 @@
     class="section-bar flex justify-between max-w-none mx-0 mt-6 items-center pl-2 pr-2 sm:min-w-[300px] sm:max-w-4/5 sm:mx-auto sm:pl-[10%] sm:pr-[10%]">
     <div>
       <div class="section-title text-lg font-semibold mb-0.5">Host Management</div>
-      <div class="section-desc text-base text-zinc-400 font-normal">Manage your desktop hosts and their configurations
-      </div>
+      <div class="section-desc text-base text-zinc-400 font-normal">Manage your desktop hosts and their configurations</div>
     </div>
   </div>
   <div id="host-tabs"
     class="host-tabs flex flex-wrap gap-3 my-8 mx-0 max-w-none justify-start pl-2 pr-2 sm:min-w-[300px] sm:max-w-4/5 sm:mx-auto sm:pl-[10%] sm:pr-[10%]">
+    {% for host in hosts %}
+      {% set status = host.status %}
+      <button class="host-tab flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-400 shadow px-6 py-3 min-w-[220px] relative transition-colors font-medium hover:bg-zinc-800 hover:text-white hover:border-white {% if status == "online" %}selected bg-zinc-800 text-white border-white{% endif %}"
+        hx-get="/dashboard/{{ host.hostname }}" hx-target="#dashboard" hx-swap="innerHTML">
+        <div class="flex items-center gap-2">
+          <svg class="monitor-icon w-6 h-6 text-white" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect><rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect><line x1="6" x2="6.01" y1="6" y2="6"></line><line x1="6" x2="6.01" y1="18" y2="18"></line></svg>
+          <span class="status-dot w-2.5 h-2.5 rounded-full ml-1 mr-2 inline-block {% if status == "online" %}bg-green-500{% elif status == "idle" %}bg-yellow-400{% else %}bg-red-500{% endif %}"></span>
+        </div>
+        <div class="host-info flex flex-col items-start flex-1">
+          <span class="host-name font-semibold text-base mb-0.5">{{ host.hostname }}</span>
+          <span class="host-ip text-sm text-zinc-400">{{ host.ip }}</span>
+        </div>
+        <span class="status-badge inline-flex items-center text-xs font-semibold rounded-full px-3 py-1 ml-2 capitalize transition-colors {% if status == "online" %}bg-green-500 text-white{% elif status == "idle" %}bg-yellow-400 text-zinc-900{% else %}bg-red-500 text-white{% endif %}">
+          {% if status == "online" %}Online{% elif status == "idle" %}Idle{% else %}Offline{% endif %}
+        </span>
+      </button>
+    {% endfor %}
   </div>
   <div id="host-panel"></div>
   <div id="dashboard"></div>
@@ -69,22 +83,20 @@
     </style>
   </div>
   <script>
+    // Only keep the loading overlay and modal logic, remove the fetch/host tab JS
     var loadingOverlayTimer = null;
     var loadingOverlayShown = false;
     var loadingOverlayRequestActive = false;
     var loadingOverlayCountdown = null;
     var loadingOverlayCountdownValue = 4;
     var loadingOverlayHostname = '';
-
     document.body.addEventListener('htmx:beforeRequest', function(evt) {
       var url = '';
-      // Try to get URL from element attributes
       if (evt.detail.elt && evt.detail.elt.getAttribute('hx-post')) {
         url = evt.detail.elt.getAttribute('hx-post');
       } else if (evt.detail.elt && evt.detail.elt.getAttribute('hx-get')) {
         url = evt.detail.elt.getAttribute('hx-get');
       }
-      // Fallback: get URL from htmx.ajax or programmatic requests
       if (!url && evt.detail.requestConfig && evt.detail.requestConfig.path) {
         url = evt.detail.requestConfig.path;
       }
@@ -100,7 +112,6 @@
           if (loadingOverlayRequestActive) {
             document.getElementById('loading-overlay').style.display = 'flex';
             loadingOverlayShown = true;
-            // Start countdown
             loadingOverlayCountdownValue = 4;
             updateLoadingOverlayText();
             loadingOverlayCountdown = setInterval(function() {
@@ -117,11 +128,9 @@
         }, 1000);
       }
     });
-
     function updateLoadingOverlayText() {
       document.getElementById('loading-overlay-countdown').textContent = 'Trying to connect... quitting in ' + loadingOverlayCountdownValue;
     }
-
     function hideLoadingOverlay() {
       loadingOverlayRequestActive = false;
       if (loadingOverlayTimer) {
@@ -135,11 +144,9 @@
       document.getElementById('loading-overlay').style.display = 'none';
       loadingOverlayShown = false;
     }
-
     document.body.addEventListener('htmx:afterRequest', hideLoadingOverlay);
     document.body.addEventListener('htmx:responseError', hideLoadingOverlay);
     document.body.addEventListener('htmx:afterSwap', function (evt) {
-      console.log('htmx:afterSwap fired', evt.detail);
       if (evt.detail.target.id === 'add-host-modal-content') {
         document.getElementById('add-host-modal').classList.remove('hidden');
       }
@@ -157,6 +164,13 @@
       }
     });
   </script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      var firstTab = document.querySelector('.host-tab');
+      if (firstTab) {
+        firstTab.click();
+      }
+    });
+  </script>
 </body>
-
-</html>
+</html> 

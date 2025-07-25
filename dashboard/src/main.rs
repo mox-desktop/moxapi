@@ -7,8 +7,10 @@ use actix_web::{http::header, middleware::Logger};
 use askama::Template;
 use awc::Client;
 use chrono_humanize::{Accuracy, Tense};
+use futures::future;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 #[derive(Template)]
@@ -20,15 +22,70 @@ struct DashboardTemplate {
     last_seen: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct HostWithStatus {
+    pub hostname: String,
+    pub ip: String,
+    pub status: String,
+}
+
+#[derive(Template)]
+#[template(path = "main_dashboard.html")]
+pub struct MainDashboardTemplate {
+    pub hosts: Vec<HostWithStatus>,
+}
+
 #[get("/")]
-async fn index(session: Session) -> Result<HttpResponse, actix_web::Error> {
+async fn index(
+    session: Session,
+    data: web::Data<Arc<RwLock<config::Config>>>,
+) -> Result<HttpResponse, actix_web::Error> {
     if session
         .get::<bool>("logged_in")
         .unwrap_or(Some(false))
         .unwrap_or(false)
     {
-        let body = std::fs::read("static/index.html")?;
-        Ok(HttpResponse::Ok().content_type("text/html").body(body))
+        let config = data.read().await;
+
+        let futures: Vec<_> = config
+            .hosts
+            .iter()
+            .map(|(hostname, host)| async {
+                let response = Client::default()
+                    .get(format!("{}/status", host.ip))
+                    .insert_header(("Authorization", host.api_key.clone()))
+                    .timeout(Duration::from_secs(1))
+                    .send()
+                    .await;
+                let status = match response {
+                    Ok(mut res) => res.json::<Status>().await.unwrap_or_default(),
+                    Err(_) => {
+                        return HostWithStatus {
+                            hostname: hostname.clone(),
+                            ip: host.ip.clone(),
+                            status: "offline".to_string(),
+                        };
+                    }
+                };
+                let status = match status.active {
+                    true => "idle",
+                    false => "online",
+                }
+                .to_string();
+
+                HostWithStatus {
+                    hostname: hostname.clone(),
+                    ip: host.ip.clone(),
+                    status,
+                }
+            })
+            .collect();
+
+        let hosts: Vec<HostWithStatus> = future::join_all(futures).await;
+        let template = MainDashboardTemplate { hosts };
+        Ok(HttpResponse::Ok()
+            .content_type("text/html")
+            .body(template.render().unwrap()))
     } else {
         Ok(HttpResponse::Found()
             .append_header((header::LOCATION, "/login"))
@@ -134,7 +191,7 @@ async fn dashboard(
         ip: host.ip.clone(),
         status,
         hostname,
-        last_seen: ht.to_text_en(Accuracy::Rough, Tense::Present),
+        last_seen: ht.to_text_en(Accuracy::Rough, Tense::Past),
     };
     Ok(HttpResponse::Ok().body(template.render().unwrap()))
 }
