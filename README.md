@@ -48,7 +48,9 @@ Or use Docker secrets with Swarm/Kubernetes and mount them at the paths referenc
 
 This project is dual-licensed:
 
-- **Individuals:** Free for personal, non-commercial use under the GNU AGPL v3.0 (or later). See LICENSE-AGPL for details.
-- **Companies/Organizations:** Commercial use requires a paid license. Please contact the author for commercial licensing options.
+- **MIT License** for personal, educational, or non-commercial use (see LICENSE-MIT)
+- **Commercial License** for business, organizational, or commercial use (see LICENSE-COMMERCIAL)
 
-For questions or to obtain a commercial license, email: <your-email@example.com> 
+If you are a business or using this software commercially, please contact Oskar Rochowiak to obtain a commercial license:
+
+Email: oskarrochowiak@gmail.com 
