@@ -1,0 +1,44 @@
+<button
+  class="host-tab flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-400 shadow px-6 py-3 min-w-[220px] relative transition-colors font-medium hover:bg-zinc-800 hover:text-white hover:border-white"
+  hx-get="/dashboard/{{ host.hostname }}" hx-target="#dashboard" hx-swap="innerHTML">
+  <div class="flex items-center gap-2">
+    <svg class="monitor-icon w-6 h-6 text-white" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect>
+      <rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect>
+      <line x1="6" x2="6.01" y1="6" y2="6"></line>
+      <line x1="6" x2="6.01" y1="18" y2="18"></line>
+    </svg>
+
+    {% if status == "online" %}
+    <span class="status-dot w-2.5 h-2.5 rounded-full ml-1 mr-2 inline-block bg-green-500" />
+    {% elif status == "idle" %}
+    <span class="status-dot w-2.5 h-2.5 rounded-full ml-1 mr-2 inline-block bg-yellow-400" />
+    {% else %}
+    <span class="status-dot w-2.5 h-2.5 rounded-full ml-1 mr-2 inline-block bg-red-500" />
+    {% endif %}
+
+  </div>
+  <div class="host-info flex flex-col items-start flex-1">
+    <span class="host-name font-semibold text-base mb-0.5">{{ host.hostname }}</span>
+    <span class="host-ip text-sm text-zinc-400">{{ host.ip }}</span>
+  </div>
+
+  {% if status == "online" %}
+  <span
+    class="status-badge inline-flex items-center text-xs font-semibold rounded-full px-3 py-1 ml-2 capitalize transition-colors bg-green-500 text-white">
+    Online
+  </span>
+  {% elif status == "idle" %}
+  <span
+    class="status-badge inline-flex items-center text-xs font-semibold rounded-full px-3 py-1 ml-2 capitalize transition-colors bg-yellow-400 text-zinc-900">
+    Idle
+  </span>
+  {% else %}
+  <span
+    class="status-badge inline-flex items-center text-xs font-semibold rounded-full px-3 py-1 ml-2 capitalize transition-colors bg-red-500 text-white">
+    Offline
+  </span>
+  {% endif %}
+</button>

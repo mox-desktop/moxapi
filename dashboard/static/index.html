@@ -3,7 +3,26 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>htmx App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desktop Host Manager</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="description" content="Manage your desktop hosts and their configurations">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Host Manager">
+  
+  <!-- PWA Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/icon-72x72.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/icons/icon-72x72.png">
+  <link rel="apple-touch-icon" href="/static/icons/icon-152x152.png">
+  <link rel="mask-icon" href="/static/icons/icon.svg" color="#09090b">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/static/manifest.json">
+  
+  <!-- External Resources -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <link href="/static/input.css" rel="stylesheet">
@@ -57,14 +76,23 @@
       id="add-host-modal-content">
     </div>
   </div>
-  <div id="loading-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(255,255,255,0.85); z-index:2000; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-    <div id="loading-overlay-waiting" style="margin-bottom:0.5rem; font-size:1.5rem; font-weight:bold; color:#222;">Waiting...</div>
+  <div id="loading-overlay"
+    style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(255,255,255,0.85); z-index:2000; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+    <div id="loading-overlay-waiting" style="margin-bottom:0.5rem; font-size:1.5rem; font-weight:bold; color:#222;">
+      Waiting...</div>
     <div id="loading-overlay-countdown" style="font-size:1.1rem; color:#222;"></div>
-    <div style="border: 4px solid #e5e7eb; border-top: 4px solid #222; border-radius: 50%; width: 48px; height: 48px; animation: spin 1s linear infinite; margin-top:1.5rem;"></div>
+    <div
+      style="border: 4px solid #e5e7eb; border-top: 4px solid #222; border-radius: 50%; width: 48px; height: 48px; animation: spin 1s linear infinite; margin-top:1.5rem;">
+    </div>
     <style>
       @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+          transform: rotate(0deg);
+        }
+
+        100% {
+          transform: rotate(360deg);
+        }
       }
     </style>
   </div>
@@ -76,15 +104,13 @@
     var loadingOverlayCountdownValue = 4;
     var loadingOverlayHostname = '';
 
-    document.body.addEventListener('htmx:beforeRequest', function(evt) {
+    document.body.addEventListener('htmx:beforeRequest', function (evt) {
       var url = '';
-      // Try to get URL from element attributes
       if (evt.detail.elt && evt.detail.elt.getAttribute('hx-post')) {
         url = evt.detail.elt.getAttribute('hx-post');
       } else if (evt.detail.elt && evt.detail.elt.getAttribute('hx-get')) {
         url = evt.detail.elt.getAttribute('hx-get');
       }
-      // Fallback: get URL from htmx.ajax or programmatic requests
       if (!url && evt.detail.requestConfig && evt.detail.requestConfig.path) {
         url = evt.detail.requestConfig.path;
       }
@@ -96,14 +122,13 @@
         document.getElementById('loading-overlay-countdown').textContent = '';
         loadingOverlayShown = false;
         loadingOverlayRequestActive = true;
-        loadingOverlayTimer = setTimeout(function() {
+        loadingOverlayTimer = setTimeout(function () {
           if (loadingOverlayRequestActive) {
             document.getElementById('loading-overlay').style.display = 'flex';
             loadingOverlayShown = true;
-            // Start countdown
             loadingOverlayCountdownValue = 4;
             updateLoadingOverlayText();
-            loadingOverlayCountdown = setInterval(function() {
+            loadingOverlayCountdown = setInterval(function () {
               loadingOverlayCountdownValue--;
               if (loadingOverlayCountdownValue > 0) {
                 updateLoadingOverlayText();
@@ -155,6 +180,37 @@
         document.getElementById('add-host-modal').classList.add('hidden');
         document.getElementById('add-host-modal-content').innerHTML = '';
       }
+    });
+  </script>
+  
+  <!-- Service Worker Registration -->
+  <script>
+    // Register service worker for PWA functionality
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/static/sw.js')
+          .then(function(registration) {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          })
+          .catch(function(error) {
+            console.log('ServiceWorker registration failed: ', error);
+          });
+      });
+    }
+    
+    // PWA Install prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      // You can show an install button here if desired
+      console.log('PWA install prompt available');
+    });
+    
+    // Handle PWA install
+    window.addEventListener('appinstalled', (evt) => {
+      console.log('PWA was installed');
+      deferredPrompt = null;
     });
   </script>
 </body>
