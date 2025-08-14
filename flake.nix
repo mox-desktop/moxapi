@@ -28,28 +28,30 @@
       devShells = forAllSystems (pkgs: {
         default =
           let
-            inherit (pkgs) lib;
-            buildInputs =
-              [
-                (pkgs.rust-bin.stable.latest.default.override {
+            buildInputs = [
+              (pkgs.rust-bin.selectLatestNightlyWith (
+                toolchain:
+                toolchain.default.override {
                   extensions = [
+                    "rustc-codegen-cranelift-preview"
                     "rust-src"
                     "rustfmt"
                   ];
-                })
-              ]
-              ++ builtins.attrValues {
-                inherit (pkgs)
-                  rust-analyzer-unwrapped
-                  nixd
-                  pkg-config
-                  vscode-langservers-extracted
-                  biome
-                  htmx-lsp2
-                  tailwindcss
-                  tailwindcss-language-server
-                  ;
-              };
+                }
+              ))
+            ]
+            ++ builtins.attrValues {
+              inherit (pkgs)
+                rust-analyzer-unwrapped
+                nixd
+                pkg-config
+                vscode-langservers-extracted
+                biome
+                htmx-lsp2
+                tailwindcss
+                tailwindcss-language-server
+                ;
+            };
           in
           pkgs.mkShell {
             inherit buildInputs;

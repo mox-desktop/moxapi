@@ -1,12 +1,21 @@
 mod config;
 
 use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
-use actix_web::cookie::Key;
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
+use actix_web::{
+    App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
+    body::BoxBody,
+    cookie::Key,
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    get,
+    middleware::{self, DefaultHeaders},
+    post, rt, web,
+};
 use actix_web::{http::header, middleware::Logger};
+use actix_ws::AggregatedMessage;
 use askama::Template;
 use awc::Client;
 use chrono_humanize::{Accuracy, Tense};
+use futures::StreamExt;
 use futures::future;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -287,6 +296,36 @@ async fn login_post(
     Ok(HttpResponse::Ok().body(template.render().unwrap()))
 }
 
+async fn echo(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    let (res, mut session, stream) = actix_ws::handle(&req, stream)?;
+
+    let mut stream = stream
+        .aggregate_continuations()
+        .max_continuation_size(2_usize.pow(20));
+
+    rt::spawn(async move {
+        while let Some(msg) = stream.next().await {
+            match msg {
+                Ok(AggregatedMessage::Text(text)) => {
+                    session.text(text).await.unwrap();
+                }
+
+                Ok(AggregatedMessage::Binary(bin)) => {
+                    session.binary(bin).await.unwrap();
+                }
+
+                Ok(AggregatedMessage::Ping(msg)) => {
+                    session.pong(&msg).await.unwrap();
+                }
+
+                _ => {}
+            }
+        }
+    });
+
+    Ok(res)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let secret = Key::generate();
@@ -294,6 +333,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .route("/echo", web::get().to(echo))
             .app_data(web::Data::new(config.clone()))
             .wrap(Logger::default())
             .wrap(

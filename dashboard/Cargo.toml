@@ -17,3 +17,4 @@ tokio = { version = "1.46.1", features = ["full"] }
 chrono = "0.4.41"
 chrono-humanize = "0.2.3"
 futures = { version = "0.3.31", features = ["std"] }
+actix-ws = "0.3.0"
